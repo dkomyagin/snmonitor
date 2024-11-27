@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmrtlib.cpp
 // Author      : Dmitry Komyagin
-// Version     : 0.8
-// Created on  : Oct 16, 2024
+// Version     : 0.81
+// Created on  : Nov 27, 2024
 // Copyright   : Public domain
 // Description : SNMONITOR RuntimeControl library, Linux, ISO C++14
 //======================================================================================
@@ -126,7 +126,7 @@ static void coutView(sqlite3 *db, char suf, uint8_t days = 0)
 // Constructor
 RuntimeControl::RuntimeControl(GMonitor *gMonitor, httpSNMserver *httpServer, snmMailer *smtpHdlr, eventInformer *eventInf)
 {
-	const struct eventData evdata = {SNM_RTC_MODULE_NAME, "RuntimeControl()", "RTC started", SNM_RTC_STARTED};
+	const struct eventData evdata = {SNM_RTC_MODULE_NAME, "RuntimeControl()", "RTC started\nUse 'h' + <Enter> for help", SNM_RTC_STARTED};
 	gM = gMonitor;
 	nS = httpServer;
 	smtph = smtpHdlr;
