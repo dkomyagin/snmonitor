@@ -1,8 +1,8 @@
 //============================================================================
 // Name        : snmeventinfo.cpp
 // Author      : Dmitry Komyagin
-// Version     : 0.6
-// Created on  : Oct 16, 2024
+// Version     : 0.7
+// Created on  : Dec 2, 2024
 // Copyright   : Public domain
 // Description : SNMONITOR Informer library, Linux, ISO C++14
 //============================================================================
@@ -22,6 +22,7 @@
 #include "httpnanosrv.h"
 #include "snmgmlib.h"
 #include "snmrtlib.h"
+#include <syslog.h>
 
 using namespace std;
 
@@ -30,6 +31,12 @@ using namespace std;
 snmInformer::snmInformer(snmMailer *mailer)
 {
 	smtp = mailer;
+	openlog("snmonitor", LOG_PID, LOG_USER);
+}
+// Destructor
+snmInformer::~snmInformer()
+{
+    closelog();
 }
 // Outputs event information to console
 void snmInformer::onEvent(const eventData &info)
@@ -70,9 +77,21 @@ void snmInformer::onEvent(const eventData &info)
 			cout << getLocalTime() + "  " + info.message + "\n";
 			return;
 		}
+        else if(info.type == SNM_GM_STARTED)
+        {
+            syslog( LOG_NOTICE, "%s", info.message.c_str() );
+            cout << info.message + "\n";
+            return;
+        }
+        else if(info.type == SNM_GM_STOPPED)
+        {
+            syslog( LOG_NOTICE, "%s", info.message.c_str() );
+            cout << info.message + "\n";
+            return;
+        }
 		else if(info.type == SNM_GM_SRVC_STOPPED)
 		{
-		    if(verbose == 1) cout << info.message +"\n";
+		    if(verbose == 1) cout << info.message + "\n";
 		    return;
 		}
 	}
@@ -87,11 +106,13 @@ void snmInformer::onEvent(const eventData &info)
 	{
 		if(info.type == SNM_RTC_CRITICAL_ERROR)
 		{
+		    syslog( LOG_EMERG, "%s", info.message.c_str() );
 			cerr << getLocalTime() + "  " + info.message + "\n";
 			return;
 		}
 		if(info.type == SNM_RTC_SQL_ERR_ALARM)
 		{
+		    syslog( LOG_ALERT, "%s", info.message.c_str() );
 			infoMssg = getLocalTime() + "  " + info.message + "\n";
 			cerr << infoMssg;
 			if(smtp) smtp->sendMail( "SNMONITOR alert message", infoMssg, MAIL_TYPE_ALERT );

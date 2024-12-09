@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmrtlib.cpp
 // Author      : Dmitry Komyagin
-// Version     : 0.81
-// Created on  : Nov 27, 2024
+// Version     : 0.83
+// Created on  : Dec 3, 2024
 // Copyright   : Public domain
 // Description : SNMONITOR RuntimeControl library, Linux, ISO C++14
 //======================================================================================
@@ -279,7 +279,7 @@ void RuntimeControl::onError()
 			if(e1 != -1) // Shutdown already started when e1 == -1
 			{
 				stringstream ss;
-				ss << "Critical errors detected, stopping" << endl;
+				ss << "Critical errors detected, stopping. ";
 				ss << "Service init errors: " << e1;
 				ss << ", helper init errors: " << e2;
 				ss << ", interface errors: " << e3;
@@ -292,7 +292,7 @@ void RuntimeControl::onError()
 		}
 		if( !mssg_sent and (e4 > SQL_ERRORS_THRESHOLD_ALARM) )
 		{
-			evdata.message = "SQL errors threshold violation. Number of errors: " + to_string(e4);
+			evdata.message = "SQL errors threshold violation. SQL errors: " + to_string(e4);
 			evdata.type = SNM_RTC_SQL_ERR_ALARM;
 			ei->onEvent(evdata);
 			mssg_sent = true;

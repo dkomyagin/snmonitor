@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmgmlib.cpp
 // Author      : Dmitry Komyagin
-// Version     : 1.0
-// Created on  : Nov 8, 2024
+// Version     : 1.01
+// Created on  : Dec 2, 2024
 // Copyright   : Public domain
 // Description : SNMONITOR General Monitor library, Linux, ISO C++14
 //======================================================================================
@@ -324,7 +324,7 @@ void arpAnycastHelper::arpHelper()
 // Constructor
 GMonitor::GMonitor(sqlite3 *db, eventInformer *eventInf, bool enable_IPv6)
 {
-	const struct eventData evdata = {SNM_AAH_MODULE_NAME, "GMonitor()", "Monitor started", SNM_GM_STARTED};
+	const struct eventData evdata = {SNM_GM_MODULE_NAME, "GMonitor()", "Monitor started", SNM_GM_STARTED};
 	err_srv.init_err_flag = true; // only this flag makes sense
 	mdb = db;
 	ei = eventInf;

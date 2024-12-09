@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmeventinf.hh
 // Author      : Dmitry Komyagin
-// Version     : 0.6
-// Created on  : Oct 16, 2024
+// Version     : 0.7
+// Created on  : Dec 2, 2024
 // Copyright   : Public domain
 // Description : Header file for SNMONITOR Informer library, Linux, ISO C++14
 //======================================================================================
@@ -28,6 +28,7 @@ private:
 	snmMailer *smtp;
 public:
 	snmInformer(snmMailer *mailer);
+	~snmInformer();
 	void onEvent(const eventData &info) override;
 };
 
