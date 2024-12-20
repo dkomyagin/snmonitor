@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmgmlib.cpp
 // Author      : Dmitry Komyagin
-// Version     : 1.01
-// Created on  : Dec 2, 2024
+// Version     : 1.1
+// Created on  : Dec 12, 2024
 // Copyright   : Public domain
 // Description : SNMONITOR General Monitor library, Linux, ISO C++14
 //======================================================================================
@@ -985,6 +985,10 @@ void GMonitor::startServices(unsigned int ifIndex, bool db_mssg)
 	thread ipv4MCListener_thread(&GMonitor::ipv4MCListener, this, ifIndex, IPV4_MC_LISTENER_SRV);
 	ipv4MCListener_thread.detach();
 
+    _svcInitCnt++;
+    thread mdnsv4DOSVC_thread(&GMonitor::mdnsv4DOSVC, this, ifIndex, MDNSV4_DOSVC_SRV);
+    mdnsv4DOSVC_thread.detach();
+
 	if( IPv6_enabled and (actIf[ifIndex].sin6_scope_id != 0) )
 	{
 		_svcInitCnt++;
@@ -1841,7 +1845,7 @@ void GMonitor::msbrws4Listener(unsigned int ifIndex, uint8_t srv_type)
 	onReturn(ifIndex, srv_type);
 	return;
 }
-//
+// mDNSv4 resolver
 void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
 {
 	struct service_record srv;
@@ -1863,7 +1867,7 @@ void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
 
 	char buffer[ifa_info.mtu];
 
-	string srv_name = "_services._dns-sd._udp.local";
+	const string srv_name = "_services._dns-sd._udp.local";
     size_t mdns_s_buf_size; // = sizeof(dns_packet_header) + (srv_name.size() + 2) + sizeof(dns_query_tail);
     char mdns_s_buffer[NI_MAXHOST]; // ??? not sure
 
@@ -1915,7 +1919,7 @@ void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
    		}
    	}
     unique_lock<mutex> ulck(srv.mtx);
-    if(srv.run_flag) srv.cv.wait_for(ulck, MDNSV4RESOLVER_INIT_TIME_SHIFT);  // Waiting for ARP resolver
+    if(srv.run_flag) srv.cv.wait_for(ulck, MDNSV4RESOLVER_INIT_TIME_SHIFT);
 
     while(srv.run_flag)
     {
@@ -1940,7 +1944,7 @@ void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
 	    	if(l > 0)
 	    	{
 	    		mdns_hdr = (struct dns_packet_header *) buffer;
-	    		if( ( psa.sin_port == HTONS(MDNS_PORT) ) and ( (mdns_hdr->flags & 0xf080) == 0x80 ) ) // mDNS packet, response, no errors
+	    		if( ( psa.sin_port == HTONS(MDNS_PORT) ) and ( (mdns_hdr->flags & 0x0f80) == 0x80 ) ) // mDNS packet, response, no errors
 	    		{
 	    			++srv.rbcount;
 	    			mdns_nodes_ipv4.push_back(psa.sin_addr);
@@ -1975,7 +1979,7 @@ void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
 	    		{
 		    		mdns_hdr = (struct dns_packet_header *) buffer;
 		    		if( ( psa.sin_port == HTONS(MDNS_PORT) ) and
-		    			( (mdns_hdr->flags & 0xf080) == 0x80 ) and
+		    			( (mdns_hdr->flags & 0x0f80) == 0x80 ) and
 						(psa.sin_addr.s_addr == dsa.sin_addr.s_addr) ) // mDNS packet, response, no errors, correct sender address
 		    		{
 		    			offset = mdns_s_buf_size;
@@ -1987,7 +1991,6 @@ void GMonitor::mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type)
 							offset += sizeof(struct dns_rr_tail);
 							domain_name = get_mdns_rr_name(buffer, offset);
 							node_name = domain_name.substr( 0, domain_name.find(".local") );
-							//cout << "mdnsv4Resolver(): got name: " << domain_name << endl;
 							if( srv.run_flag and arpAHelper->getMAC(psa.sin_addr.s_addr, node_mac_addr) )
 							{
 								if(dbm->toMDNSrow( macBtoS(node_mac_addr).c_str(), node_name.c_str() ) != SQLITE_OK) ++srv.sqlerrc;
@@ -2028,7 +2031,7 @@ void GMonitor::mdnsv6Resolver(unsigned int ifIndex, uint8_t srv_type)
 
 	char buffer[ifa_info.mtu];
 
-	string srv_name = "_services._dns-sd._udp.local";
+	const string srv_name = "_services._dns-sd._udp.local";
     size_t mdns_s_buf_size; // = sizeof(dns_packet_header) + (srv_name.size() + 2) + sizeof(dns_query_tail);
     char mdns_s_buffer[NI_MAXHOST]; // ??? not sure
 
@@ -2107,7 +2110,7 @@ void GMonitor::mdnsv6Resolver(unsigned int ifIndex, uint8_t srv_type)
 	    	if(l > 0)
 	    	{
 	    		mdns_hdr = (struct dns_packet_header *) buffer;
-	    		if( ( psa.sin6_port == HTONS(MDNS_PORT) ) and ( (mdns_hdr->flags & 0xf080) == 0x80 ) ) // mDNS packet, response, no errors
+	    		if( ( psa.sin6_port == HTONS(MDNS_PORT) ) and ( (mdns_hdr->flags & 0x0f80) == 0x80 ) ) // mDNS packet, response, no errors
 	    		{
     				++srv.rbcount;
     				mdns_nodes_ipv6.push_back(psa.sin6_addr);
@@ -2142,7 +2145,7 @@ void GMonitor::mdnsv6Resolver(unsigned int ifIndex, uint8_t srv_type)
 	    		{
 		    		mdns_hdr = (struct dns_packet_header *) buffer;
 		    		if( ( psa.sin6_port == HTONS(MDNS_PORT) ) and
-		    			( (mdns_hdr->flags & 0xf080) == 0x80 ) and
+		    			( (mdns_hdr->flags & 0x0f80) == 0x80 ) and
 						(memcmp( &psa.sin6_addr, &dsa.sin6_addr, sizeof(in6_addr) ) == 0) ) // mDNS packet, response, no errors, correct sender address
 		    		{
 		    			offset = mdns_s_buf_size;
@@ -2179,172 +2182,187 @@ void GMonitor::mdnsv6Resolver(unsigned int ifIndex, uint8_t srv_type)
 	onReturn(ifIndex, srv_type);
 	return;
 }
-// mDNS listener
-void GMonitor::mdnsv4Listener(unsigned int ifIndex, uint8_t srv_type)
+// mDNS dosvc
+// Note: undocumented service, can be changed any time
+void GMonitor::mdnsv4DOSVC(unsigned int ifIndex, uint8_t srv_type)
 {
-	struct service_record srv;
-	int sd, l;
-	unsigned short offset;
-	struct sockaddr_in ssa = {0};
-	struct sockaddr_in psa;
-	socklen_t psa_len;
-	struct eventData evdata = {SNM_GM_MODULE_NAME, "mdnsv4Listener", "", 0};
+    struct service_record srv;
+    int sd, l;
+    unsigned short offset;
+    struct sockaddr_in ssa = {0};
+    struct sockaddr_in dsa = {0};
+    struct sockaddr_in psa = {0};
+    socklen_t psa_len;
+    string domain_name, node_name, ans_name, rr_name;
+    struct dns_packet_header *mdns_hdr;
+    struct dns_rr_tail *rr_tail;
+    unsigned char node_mac_addr[ETH_ALEN];
+    struct eventData evdata = {SNM_GM_MODULE_NAME, "mdnsv4DOSVC", "", 0};
 
-	struct interface ifa_info = actIf[ifIndex]; // get interface info
-	class arpAnycastHelper* arpAHelper = arpHlpr.at(ifIndex); // pointer to arpAnycastHelper
+    struct interface ifa_info = actIf[ifIndex]; // get interface info
+    class arpAnycastHelper* arpAHelper = arpHlpr.at(ifIndex); // pointer to arpAnycastHelper
 
-	unsigned char buffer[ifa_info.mtu];
-	struct dns_packet_header *header = (dns_packet_header *) buffer;
-	struct dns_rr_tail *rr_tail;
-	string rr_name, rr_domain_name, arpa_ipv4;
-	uint16_t rr_type, rr_name_len;
-	unsigned char node_mac_addr[ETH_ALEN];
+    char buffer[ifa_info.mtu];
 
-	ssa.sin_family = AF_INET;
-	ssa.sin_port = HTONS(MDNS_PORT);
-	ssa.sin_addr.s_addr = htonl(INADDR_MDNS_LOCAL_GROUP);
+    const string srv_name = "_dosvc._tcp.local";
+    size_t mdns_s_buf_size; // = sizeof(dns_packet_header) + (srv_name.size() + 2) + sizeof(dns_query_tail);
+    char mdns_s_buffer[NI_MAXHOST]; // ??? not sure
+
+    dsa.sin_family = AF_INET;
+    dsa.sin_port = HTONS(MDNS_PORT);
+    dsa.sin_addr.s_addr = htonl(INADDR_MDNS_LOCAL_GROUP); // 224.0.0.251
+
+    ssa.sin_family = AF_INET;
+    ssa.sin_port = PORT_ANY;
+    ssa.sin_addr = ifa_info.ip_addr;
 
     sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-   	if(sd == -1)
-   	{
-   		toSrvMapErr(ifIndex, srv_type); // add to services
-		evdata.message = "Failed to create socket descriptor: " + err2string( strerror(errno) );
-		evdata.type = SNM_GM_ERROR_SOCKET;
-	  	ei->onEvent(evdata);
-   	   	return;
-   	}
-   	else
-   	{
-   		// Set reuse option for reserved port
-		int enbl_flag = 1;
-		if(setsockopt( sd, SOL_SOCKET, SO_REUSEADDR, &enbl_flag, sizeof(int) ) == -1)
-		{
-   			close(sd);
-   			toSrvMapErr(ifIndex, srv_type); // add to services
-			evdata.message = "Failed to set socket option: " + err2string( strerror(errno) );
-			evdata.type = SNM_GM_ERROR_OPTION;
-		  	ei->onEvent(evdata);
-   			return;
-   		}
-		else
-		{
-	   		// Set timeout for protocol
-	   		struct timeval tv = {.tv_sec = UCAST_REQ_RETRY_TIMEOUT};
-	   		if(setsockopt( sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv) ) == -1)
-	   		{
-	   			close(sd);
-	   			toSrvMapErr(ifIndex, srv_type); // add to services
-				evdata.message = "Failed to set timeout option: " + err2string( strerror(errno) );
-				evdata.type = SNM_GM_ERROR_TO_OPTION;
-			  	ei->onEvent(evdata);
-	   			return;
-	   		}
-	   		else
-	   		{
-	   			// Bind to interface
-	   			struct ifreq if_bind;
-	   			strncpy( (char *) &if_bind.ifr_ifrn, ifa_info.if_name, IFNAMSIZ );
-	   			if(setsockopt( sd, SOL_SOCKET, SO_BINDTODEVICE, (char *)&if_bind,  sizeof(struct ifreq) ) == -1)
-	   			{
-	   				close(sd);
-	   				toSrvMapErr(ifIndex, srv_type); // add to services
-					evdata.message = "Failed to bind to interface: " + err2string( strerror(errno) );
-					evdata.type = SNM_GM_ERROR_BIND;
-				  	ei->onEvent(evdata);
-	   				return;
-	   			}
-	   			else
-	   			{
-					// Bind to multicast group
-					if(bind( sd, (struct sockaddr*) &ssa, sizeof(struct sockaddr_in) ) == -1)
-					{
-		   				close(sd);
-		   				toSrvMapErr(ifIndex, srv_type); // add to services
-						evdata.message = "Failed to bind to multicast group: " + err2string( strerror(errno) );
-						evdata.type = SNM_GM_ERROR_BIND_MCG;
-					  	ei->onEvent(evdata);
-		   				return;
-					}
-					else
-					{
-						// Add membership to multicast group
-						struct ip_mreqn mreqn;
-						mreqn.imr_multiaddr = ssa.sin_addr; 	// multicast group address
-						mreqn.imr_address.s_addr = INADDR_ANY;	// use interface address
-						mreqn.imr_ifindex = ifIndex; 			// interface number
-						if(setsockopt( sd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreqn, sizeof(struct ip_mreqn) ) == -1)
-						{
-			   				close(sd);
-			   				toSrvMapErr(ifIndex, srv_type); // add to services
-							evdata.message = "Failed to add membership to multicast group: " + err2string( strerror(errno) );
-							evdata.type = SNM_GM_ERROR_ADD_MBSH;
-						  	ei->onEvent(evdata);
-			   				return;
-						}
-			   			else
-			   			{
-			   				toSrvMap( ifIndex, srv_type, ref(srv) ); // add to services
-			   			}
-					}
-	   			}
-	   		}
-		}
-   	}
+    if(sd == -1)
+    {
+        toSrvMapErr(ifIndex, srv_type); // add to services
+        evdata.message = "Failed to create socket descriptor: " + err2string( strerror(errno) );
+        evdata.type = SNM_GM_ERROR_SOCKET;
+        ei->onEvent(evdata);
+        return;
+    }
+    else
+    {
+        // Set timeout for protocol
+        struct timeval tv = {.tv_sec = UCAST_REQ_RETRY_TIMEOUT};
+        if(setsockopt( sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv) ) == -1)
+        {
+            close(sd);
+            toSrvMapErr(ifIndex, srv_type); // add to services
+            evdata.message = "Failed to set timeout option: " + err2string( strerror(errno) );
+            evdata.type = SNM_GM_ERROR_TO_OPTION;
+            ei->onEvent(evdata);
+            return;
+        }
+        else
+        {
+            // Bind to interface
+            if(bind( sd, (struct sockaddr*) &ssa, sizeof(struct sockaddr_in) ) == -1)
+            {
+                close(sd);
+                toSrvMapErr(ifIndex, srv_type); // add to services
+                evdata.message = "Failed to bind: " + err2string( strerror(errno) );
+                evdata.type = SNM_GM_ERROR_BIND;
+                ei->onEvent(evdata);
+                return;
+            }
+            else
+            {
+                toSrvMap( ifIndex, srv_type, ref(srv) ); // add to services
+            }
+        }
+    }
+    unique_lock<mutex> ulck(srv.mtx);
+    if(srv.run_flag) srv.cv.wait_for(ulck, MDNSV4DOSVC_INIT_TIME_SHIFT);
 
     while(srv.run_flag)
     {
-   		memset( buffer, 0, sizeof(buffer) );
-   		memset( &psa, 0, sizeof(psa) );	psa_len = sizeof(struct sockaddr_in);
-   		l = recvfrom(sd, buffer, sizeof(buffer), 0, (struct sockaddr*) &psa, &psa_len);
-   		if( srv.run_flag and (l > 0) )
-   		{
-   			++srv.rbcount;
-   			offset = 0;
-   			if( (header->name_trn_id == 0) and ( (header->flags & 0x0080) > 0 ) ) // requests only
-   			{
-   				arpa_ipv4 = arpa_ip4_string(psa.sin_addr.s_addr);
-   				offset += sizeof(union dns_rr_pointer);
-   				offset += sizeof(struct dns_rr_tail);
-
-   				for(uint8_t i=0; i < NTOHS(header->ancount); ++i)
-   				{
-   					rr_name_len = mdns_rr_name_len( (char *) buffer, offset );
-   					rr_tail = (struct dns_rr_tail *) (buffer + offset + rr_name_len);
-   					rr_type = NTOHS(rr_tail->rrtype);
-   					if(rr_type == DNS_TYPE_PTR)
-   					{
-   						rr_name = get_mdns_rr_name( (char *) buffer, offset );
-  						offset += rr_name_len;
-  						offset += sizeof(struct dns_rr_tail);
-  						rr_domain_name = get_mdns_rr_name( (char *) buffer, offset );
-  						offset += mdns_rr_name_len( (char *) buffer, offset );
-  						if(rr_name == arpa_ipv4)
-  						{
-  							++srv.rcount;
-  							rr_domain_name = rr_domain_name.substr( 0, rr_domain_name.find(".local") );
-  		    				if( srv.run_flag and arpAHelper->getMAC(psa.sin_addr.s_addr, node_mac_addr) )
-  		    				{
-  		    					if(dbm->toMDNSrow( macBtoS(node_mac_addr).c_str(), rr_domain_name.c_str() ) != SQLITE_OK) srv.sqlerrc++;
-  		    				}
-  						}
-   					}
-   					else
-   					{
-   						offset += rr_name_len;
-   						offset += sizeof(struct dns_rr_tail);
-   						offset += NTOHS(rr_tail->rdlenth);
-   					}
-   				}
-   			}
-   		}
-   		else
-   		{
-   			continue;
-   		}
+        mdns_s_buf_size = make_simple_mdns_request(srv_name, mdns_s_buffer);
+        l = sendto( sd, mdns_s_buffer, mdns_s_buf_size, 0, (struct sockaddr*) &dsa, sizeof(dsa) );
+        if(l == -1)
+        {
+            evdata.message = "Failed to send: " + err2string( strerror(errno) );
+            evdata.type = SNM_GM_ERROR_SEND;
+            ei->onEvent(evdata);
+            ++srv.interrc;
+            continue;
+        }
+        ++srv.sbcount;
+        //
+        while( srv.run_flag and (l != -1) )
+        {
+            memset( buffer, 0, sizeof(buffer) );
+            memset( &psa, 0, sizeof(psa) ); psa_len = sizeof(struct sockaddr_in);
+            l = recvfrom(sd, buffer, sizeof(buffer), 0, (struct sockaddr*) &psa, &psa_len);
+            if(l > 0)
+            {
+                mdns_hdr = (struct dns_packet_header *) buffer;
+                if( ( psa.sin_port == HTONS(MDNS_PORT) ) and ( (mdns_hdr->flags & 0x0f80) == 0x80 ) ) // mDNS packet, response, no errors
+                {
+                    ++srv.rcount;
+                    if( NTOHS(mdns_hdr->qdcount) == 0 )
+                    {
+                        offset = sizeof(dns_packet_header); // question section can be omitted in this response
+                    }
+                    else
+                    {
+                        offset = mdns_s_buf_size;
+                    }
+                    if(offset >= l)
+                    {
+                        ++srv.interrc;
+                        continue;
+                    }
+                    rr_name = get_mdns_rr_name(buffer, offset);
+                    if(rr_name != srv_name) continue; // check answer name
+                    if( ( offset += mdns_rr_name_len(buffer, offset) ) >= l )
+                    {
+                        ++srv.interrc;
+                        continue;
+                    }
+                    rr_tail = (struct dns_rr_tail *) &buffer[offset];
+                    if( rr_tail->rrtype != HTONS(DNS_TYPE_PTR) ) continue; // check answer rr type
+                    if( ( offset += sizeof(struct dns_rr_tail) )  >= l )
+                    {
+                        ++srv.interrc;
+                        continue;
+                    }
+                    domain_name = get_mdns_rr_name(buffer, offset);
+                    node_name = domain_name.substr( 0, domain_name.find("." + srv_name) );
+                    if( ( offset += HTONS(rr_tail->rdlenth) ) >= l )
+                    {
+                        ++srv.interrc;
+                        continue;
+                    }
+                    for(uint8_t i = 0; i < NTOHS(mdns_hdr->arcount); ++i)
+                    {
+                        rr_name = get_mdns_rr_name(buffer, offset);
+                        if( ( offset += mdns_rr_name_len(buffer, offset) ) >= l )
+                        {
+                            ++srv.interrc;
+                            break;
+                        }
+                        rr_tail = (struct dns_rr_tail *) &buffer[offset];
+                        if( rr_tail->rrtype == HTONS(DNS_TYPE_A) )
+                        {
+                            if(rr_name == node_name + ".local") // valid name
+                            {
+                                if( ( offset += sizeof(struct dns_rr_tail) ) >= l )
+                                {
+                                    ++srv.interrc;
+                                    break;
+                                }
+                                if( psa.sin_addr.s_addr == *( (in_addr_t *) &buffer[offset] ) ) // valid IP address
+                                {
+                                    if( srv.run_flag and arpAHelper->getMAC(psa.sin_addr.s_addr, node_mac_addr) )
+                                    {
+                                        if(dbm->toMDNSrow( macBtoS(node_mac_addr).c_str(), node_name.c_str() ) != SQLITE_OK) ++srv.sqlerrc;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        if( ( offset += sizeof(struct dns_rr_tail) + HTONS(rr_tail->rdlenth) ) >= l )
+                        {
+                            ++srv.interrc;
+                            break;
+                        }
+                    } // end for
+                } // end if
+            } // end if
+        } // end while
+        if(srv.run_flag)
+            srv.cv.wait_for(ulck, MDNSV4DOSVC_SLEEP_TIME);
+        else
+            break;
     } // end while
-	close(sd);
-	onReturn(ifIndex, srv_type);
-	return;
+    close(sd);
+    onReturn(ifIndex, srv_type);
+    return;
 }
 // IPv4 multicast listener (mDNS, LLMNR)
 void GMonitor::ipv4MCListener(unsigned int ifIndex, uint8_t srv_type)
@@ -2444,7 +2462,7 @@ void GMonitor::ipv4MCListener(unsigned int ifIndex, uint8_t srv_type)
 					continue;
 				}
 				dns_header = (struct dns_packet_header *) &rbuffer[offset];
-				if( (dns_header->name_trn_id == 0) and ( (dns_header->flags & 0x0080) > 0 ) ) // requests only
+				if( (dns_header->name_trn_id == 0) and ( (dns_header->flags & 0x0f80) == 0x80 ) ) // response, no errors
 				{
 					mssg_offset = offset; // set beginning of mDNS message
 	   				arpa_ipv4 = arpa_ip4_string(ipv4header->saddr);
@@ -2480,9 +2498,7 @@ void GMonitor::ipv4MCListener(unsigned int ifIndex, uint8_t srv_type)
 	  						if(rr_name == arpa_ipv4)
 	  						{
 	  							++srv.rcount;
-	  							//cout << rr_name << endl;
 	  							rr_domain_name = rr_domain_name.substr( 0, rr_domain_name.find(".local") );
-	  							//cout << rr_domain_name << ", mac = " << macBtoS(ethheader->h_source) << endl << endl;
 	  							inet_ntop(AF_INET, &(ipv4header->saddr), ip_addr_dot, INET_ADDRSTRLEN);
 	  		    				if( srv.run_flag and (dbm->toARProw(macBtoS(ethheader->h_source).c_str(), ip_addr_dot) != SQLITE_OK) )
 	  		    				{
@@ -2738,7 +2754,7 @@ void GMonitor::ipv6Listener(unsigned int ifIndex, uint8_t srv_type)
 				{
 					offset += sizeof(struct udphdr);
 					mdns_hdr = (struct dns_packet_header *) &rbuffer[offset];
-					if( (mdns_hdr->name_trn_id == 0) and ( (mdns_hdr->flags & 0xf080) == 0x80 ) ) // responses only
+					if( (mdns_hdr->name_trn_id == 0) and ( (mdns_hdr->flags & 0x0f80) == 0x80 ) ) // response, no errors
 					{
 						mssg_offset = offset; // set beginning of mDNS message
 						arpa_ipv6 = arpa_ip6_string(ipv6header->ip6_src);

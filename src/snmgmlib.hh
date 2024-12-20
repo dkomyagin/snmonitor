@@ -1,8 +1,8 @@
 //======================================================================================
 // Name        : snmgmlib.hh
 // Author      : Dmitry Komyagin
-// Version     : 1.0
-// Created on  : Nov 8, 2024
+// Version     : 1.1
+// Created on  : Dec 12, 2024
 // Copyright   : Public domain
 // Description : Header file for SNMONITOR General Monitor library, Linux, ISO C++14
 //======================================================================================
@@ -92,9 +92,9 @@ public:
 #define MDNS4_RESOLVER_SRV		14
 #define UPNP_RESOLVER_SRV		15
 #define LLDP_RECEIVER_SRV		16
-#define MDNS_LISTENER_SRV		17
 #define MSBRWS_LISTENER_SRV		18
 #define IPV4_MC_LISTENER_SRV	19
+#define MDNSV4_DOSVC_SRV        20
 #define IPV6_LISTENER_SRV		61
 #define MDNS6_RESOLVER_SRV		62
 
@@ -109,6 +109,9 @@ public:
 // mDNS
 #define MDNSV4RESOLVER_INIT_TIME_SHIFT  60s
 #define MDNSV4RESOLVER_SLEEP_TIME	   180s
+// mDNS dosvc
+#define MDNSV4DOSVC_INIT_TIME_SHIFT     55s
+#define MDNSV4DOSVC_SLEEP_TIME         180s
 // UPnP
 #define UPNPV4RESOLVER_INIT_SLEEP_TIME  30s
 #define UPNPV4RESOLVER_SLEEP_TIME      180s
@@ -149,7 +152,7 @@ private:
 
 	const std::map<uint8_t, std::string> srvcNames =
 	{
-		{ARP_RECEIVER_SRV  ,   "ARP receiver"  },
+		{ARP_RECEIVER_SRV  ,   "ARP receiver"},
 		{DNS_RESOLVER_SRV,     "DNS resolver"},
 		{DHCPV4_RCVR_REQ_SRV,  "DHCPv4 requests"},
 		{DHCPV4_RCVR_RPL_SRV,  "DHCPv4 replies"},
@@ -158,7 +161,7 @@ private:
 		{MDNS4_RESOLVER_SRV,   "mDNSv4 resolver"},
 		{UPNP_RESOLVER_SRV,    "UPnP resolver"},
 		{LLDP_RECEIVER_SRV,    "LLDP receiver"},
-		{MDNS_LISTENER_SRV,    "mDNS listener"},
+		{MDNSV4_DOSVC_SRV,     "mDNSv4 dosvc"},
 		{MSBRWS_LISTENER_SRV,  "MS-BRWS listener"},
 		{IPV4_MC_LISTENER_SRV, "IPv4 multicast listener"},
 		{IPV6_LISTENER_SRV,    "IPv6 listener"},
@@ -204,7 +207,7 @@ private:
 	//
 	void mdnsv4Resolver(unsigned int ifIndex, uint8_t srv_type);
 	//
-	void mdnsv4Listener(unsigned int ifIndex, uint8_t srv_type);
+	void mdnsv4DOSVC(unsigned int ifIndex, uint8_t srv_type);
 	//
 	upnp_device_info *getUPnPDeviceInfo(struct uri_data *uri, in_addr if_ipv4_addr);
 	//
